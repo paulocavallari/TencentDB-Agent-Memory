@@ -36,6 +36,10 @@ const TAG = "[memory-tdai] [openclaw-runner]";
 export class OpenClawLLMRunner implements LLMRunner {
   private runner: CleanContextRunner;
 
+  get defaultTimeoutMs(): number {
+    return this.runner.defaultTimeoutMs;
+  }
+
   constructor(runner: CleanContextRunner) {
     this.runner = runner;
   }

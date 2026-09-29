@@ -209,7 +209,7 @@ export async function executeConversationSearch(params: {
       if (!hasEmbedding) return [];
       try {
         logger?.debug?.(`${TAG} [hybrid-vec] Generating query embedding...`);
-        const queryEmbedding = await embeddingService!.embed(query);
+        const queryEmbedding = await embeddingService!.embed(query, { inputType: "query", modality: "text" });
         logger?.debug?.(
           `${TAG} [hybrid-vec] Embedding OK, dims=${queryEmbedding.length}, searching top-${candidateK}...`,
         );

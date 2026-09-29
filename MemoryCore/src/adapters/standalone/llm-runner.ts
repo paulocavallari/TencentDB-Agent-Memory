@@ -253,6 +253,7 @@ function createReadOnlyTools(_workspaceDir: string, _logger?: Logger) {
 // ============================
 
 export class StandaloneLLMRunner implements LLMRunner {
+  readonly defaultTimeoutMs: number;
   private config: StandaloneLLMConfig;
   private model: string;
   private enableTools: boolean;
@@ -277,6 +278,7 @@ export class StandaloneLLMRunner implements LLMRunner {
     this.model = opts.model ?? opts.config.model;
     this.enableTools = opts.enableTools ?? false;
     this.stream = opts.stream ?? opts.config.stream ?? false;
+    this.defaultTimeoutMs = opts.config.timeoutMs ?? 120_000;
     this.logger = opts.logger;
   }
 

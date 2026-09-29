@@ -656,6 +656,31 @@ export class CheckpointManager {
   }
 
   /**
+   * Record L1 progress in a profile-scoped checkpoint.
+   *
+   * L1 reads/cursors are owned by the global checkpoint, while L2/L3 operate
+   * on a team+agent profile checkpoint.  The profile therefore needs its own
+   * monotonic counters for PersonaTrigger; otherwise a new scene can exist
+   * with `memories_since_last_persona=0` forever and L3 will never reach its
+   * first-scene or threshold trigger.
+   *
+   * This method deliberately does not advance an L1 cursor.  The cursor is
+   * maintained by markL1ExtractionComplete() in the global checkpoint; this
+   * method only mirrors aggregate progress into the profile namespace.
+   */
+  async markProfileL1Progress(processedMessages: number, storedMemories: number): Promise<void> {
+    const safeProcessedMessages = Math.max(0, Math.floor(processedMessages));
+    const safeStoredMemories = Math.max(0, Math.floor(storedMemories));
+    if (safeProcessedMessages === 0 && safeStoredMemories === 0) return;
+
+    await this.mutate((cp) => {
+      cp.total_processed += safeProcessedMessages;
+      cp.total_memories_extracted += safeStoredMemories;
+      cp.memories_since_last_persona += safeStoredMemories;
+    });
+  }
+
+  /**
    * 单调修复全局计数器：仅当持久值 < 期望值时抬高到期望值。
    *
    * 用于替代此前 L2 runner 里的 `write({...staleSnapshot})` —— 后者是整对象

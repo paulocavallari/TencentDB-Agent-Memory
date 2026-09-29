@@ -177,6 +177,9 @@ export function buildTraceParams(traceName: string, ctx?: TraceContext): {
  * - `StandaloneLLMRunner`: direct OpenAI-compatible HTTP calls (Gateway / Hermes host)
  */
 export interface LLMRunner {
+  /** Configured default request timeout used when a caller omits timeoutMs. */
+  readonly defaultTimeoutMs?: number;
+
   /**
    * Execute a prompt and return the LLM's text output.
    *

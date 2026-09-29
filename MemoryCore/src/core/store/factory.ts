@@ -106,6 +106,8 @@ export function createStoreBundle(
           model: config.embedding.model,
           dimensions: config.embedding.dimensions,
           sendDimensions: config.embedding.sendDimensions,
+          inputType: config.embedding.inputType,
+          modality: config.embedding.modality,
           maxInputChars: config.embedding.maxInputChars,
         }, logger);
       }
