@@ -62,6 +62,10 @@ import {
 } from "../core/profile/profile-sync.js";
 import { createScopedStorageAdapter, scopeProfileStorageView, StorageAdapter } from "../core/storage/adapter.js";
 import type { Logger } from "../core/types.js";
+import {
+  updateProfileL1Checkpoints,
+  type ProfileL1Progress,
+} from "./profile-checkpoint.js";
 
 const TAG = "[memory-tdai] [pipeline-factory]";
 
@@ -589,6 +593,7 @@ export function createL1Runner(opts: {
       let totalStored = 0;
       let lastSceneName: string | undefined;
       const profileScopes = new Set<string>();
+      const profileProgress = new Map<string, ProfileL1Progress>();
       const l1PromptTargets = groups.map((group) => ({
         teamId: group.teamId,
         agentId: group.agentId,
@@ -635,6 +640,18 @@ export function createL1Runner(opts: {
 
         totalExtracted += l1Result.extractedCount;
         totalStored += l1Result.storedCount;
+        const profileScope = buildIsolationScope({
+          teamId: group.teamId,
+          userId: group.userId,
+          agentId: group.agentId,
+        });
+        const existingProgress = profileProgress.get(profileScope) ?? {
+          processedMessages: 0,
+          storedMemories: 0,
+        };
+        existingProgress.processedMessages += group.messages.length;
+        existingProgress.storedMemories += l1Result.storedCount;
+        profileProgress.set(profileScope, existingProgress);
         if (l1Result.storedCount > 0) {
           // L2/L3 output is team+agent scoped, but each L2 extraction input must
           // stay bounded to the source session that just produced L1. Encode the
@@ -656,6 +673,13 @@ export function createL1Runner(opts: {
       // always positive, TCVDB-safe. Boundary alignment guarantees we will not
       // skip same-ms siblings on the next round.
       await checkpoint.markL1ExtractionComplete(sessionKey, totalStored, maxRecordedAtMs || undefined, lastSceneName);
+      await updateProfileL1Checkpoints({
+        pluginDataDir,
+        storage,
+        profileProgress,
+        logger,
+        checkpointLock,
+      });
       logger.info(
         `${TAG} [l1] L1 complete: extracted=${totalExtracted}, stored=${totalStored} (${groups.length} group(s))`,
       );

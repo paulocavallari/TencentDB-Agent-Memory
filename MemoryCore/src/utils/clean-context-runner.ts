@@ -298,6 +298,8 @@ async function getCleanWorkspaceDir(): Promise<string> {
 }
 
 export class CleanContextRunner {
+  /** CleanContextRunner's fallback timeout when no per-call override is supplied. */
+  readonly defaultTimeoutMs = 120_000;
   private options: CleanContextRunnerOptions;
   private logger: RunnerLogger | undefined;
   /** Resolved provider after modelRef / config fallback */

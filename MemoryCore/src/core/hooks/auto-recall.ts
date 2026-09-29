@@ -489,7 +489,11 @@ async function searchMemories(
   // Resolve per-call embedding timeout for recall path.
   // Falls back to global embedding.timeoutMs when recallTimeoutMs is not configured.
   const recallEmbeddingTimeoutMs = cfg.embedding?.recallTimeoutMs ?? cfg.embedding?.timeoutMs;
-  const embeddingCallOpts: EmbeddingCallOptions = { timeoutMs: recallEmbeddingTimeoutMs };
+  const embeddingCallOpts: EmbeddingCallOptions = {
+    timeoutMs: recallEmbeddingTimeoutMs,
+    inputType: "query",
+    modality: "text",
+  };
 
   try {
     if (effectiveStrategy === "keyword") {

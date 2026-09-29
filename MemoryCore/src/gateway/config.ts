@@ -653,6 +653,14 @@ export function loadGatewayConfig(overrides?: GatewayConfigOverrides): GatewayCo
       model: str(topLevelEmbedding, "model") ?? memory.embedding.model,
       dimensions: num(topLevelEmbedding, "dimensions") ?? memory.embedding.dimensions,
       sendDimensions: bool(topLevelEmbedding, "sendDimensions") ?? memory.embedding.sendDimensions,
+      inputType: (() => {
+        const value = str(topLevelEmbedding, "inputType");
+        return value === "query" || value === "passage" ? value : memory.embedding.inputType;
+      })(),
+      modality: (() => {
+        const value = str(topLevelEmbedding, "modality");
+        return value === "text" || value === "image" || value === "text_image" ? value : memory.embedding.modality;
+      })(),
       conflictRecallTopK: num(topLevelEmbedding, "conflictRecallTopK") ?? memory.embedding.conflictRecallTopK,
       maxInputChars: num(topLevelEmbedding, "maxInputChars") ?? memory.embedding.maxInputChars,
       timeoutMs: num(topLevelEmbedding, "timeoutMs") ?? memory.embedding.timeoutMs,

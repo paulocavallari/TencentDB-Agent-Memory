@@ -185,6 +185,10 @@ export class MetricTrackingRunner implements LLMRunner {
   /** Accumulated credit consumed across all run() calls on this runner instance. */
   accumulatedCredit = 0;
 
+  get defaultTimeoutMs(): number | undefined {
+    return this.inner.defaultTimeoutMs;
+  }
+
   constructor(
     inner: LLMRunner,
     getInstanceId: () => string | undefined,

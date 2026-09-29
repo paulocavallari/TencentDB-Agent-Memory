@@ -195,16 +195,21 @@ export class PersonaGenerator {
       await bm.backupFile(path.default.join(this.dataDir, targetFile), "persona", `offset${cp.total_processed}`, this.backupCount);
     }
 
-    // 8. Run LLM agent (sandboxed to dataDir, tools enabled — LLM writes target L3 file directly)
+    // 8. Run LLM agent (sandboxed to dataDir, tools enabled — LLM writes persona.md via tools)
+    let runnerFailure: unknown;
     try {
-      this.logger?.debug?.(`${TAG} Calling LLM for ${targetFile} generation (timeout=180s, tools=enabled, workspaceDir=${this.dataDir})...`);
+      const configuredTimeoutMs = this.runner.defaultTimeoutMs;
+      const personaTimeoutMs = Number.isFinite(configuredTimeoutMs) && (configuredTimeoutMs ?? 0) > 0
+        ? configuredTimeoutMs!
+        : 180_000;
+      this.logger?.debug?.(`${TAG} Calling LLM for ${targetFile} generation (timeout=${personaTimeoutMs}ms, tools=enabled, workspaceDir=${this.dataDir})...`);
       // langfuse trace 语义：L3 persona 生成有独立 name / 顶级 user/session 列 / 可筛选 tags。
       const traceParams = buildTraceParams("memory.persona-generate", this.traceContext);
       await this.runner.run({
         systemPrompt,
         prompt: userPrompt,
         taskId: "persona-generation",
-        timeoutMs: 180_000,
+        timeoutMs: personaTimeoutMs,
         // maxTokens omitted → core uses the resolved model's maxTokens from catalog
         workspaceDir: this.dataDir,
         // Service mode: LLM tools read/write via StorageAdapter (COS) instead of local FS
@@ -214,9 +219,31 @@ export class PersonaGenerator {
       });
       this.logger?.debug?.(`${TAG} LLM runner completed`);
     } catch (err) {
-      const elapsedMs = Date.now() - startMs;
-      this.logger?.error(`${TAG} Persona generation failed after ${elapsedMs}ms: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
-      return false;
+      runnerFailure = err;
+      // Some OpenAI-compatible tool loops keep generating after the required
+      // write has already completed. If the request timeout fires afterwards,
+      // do not discard a valid persona artifact; continue through the same
+      // read/validate/post-processing path below. An absent or empty file still
+      // fails closed.
+      let recovered: string | null = null;
+      try {
+        if (this.storage) {
+          recovered = await this.storage.readFile(targetFile);
+        } else {
+          const fs = await import("node:fs/promises");
+          recovered = await fs.default.readFile(personaFilePath, "utf-8");
+        }
+      } catch {
+        recovered = null;
+      }
+      const recoveredBody = recovered ? stripSceneNavigation(recovered).trim() : "";
+      const existingBody = existingPersona?.trim() ?? "";
+      if (!recoveredBody || (existingBody.length > 0 && recoveredBody === existingBody)) {
+        const elapsedMs = Date.now() - startMs;
+        this.logger?.error(`${TAG} Persona generation failed after ${elapsedMs}ms: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
+        return false;
+      }
+      this.logger?.warn?.(`${TAG} LLM runner failed after writing non-empty ${targetFile}; recovering artifact and continuing post-processing`);
     }
 
     // 9. Read LLM-written persona.md and apply post-processing
@@ -256,7 +283,7 @@ export class PersonaGenerator {
     }
 
     const elapsedMs = Date.now() - startMs;
-    this.logger?.info(`${TAG} ${targetFile} written (${finalContent.length} chars) in ${elapsedMs}ms`);
+    this.logger?.info(`${TAG} ${targetFile} written (${finalContent.length} chars) in ${elapsedMs}ms${runnerFailure ? " (recovered after runner failure)" : ""}`);
 
     // ── l3_persona_generation metric ──
     if (this.instanceId && this.logger) {

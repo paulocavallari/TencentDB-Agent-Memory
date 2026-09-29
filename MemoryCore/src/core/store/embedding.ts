@@ -37,6 +37,10 @@ export interface OpenAIEmbeddingConfig {
    * unknown `dimensions` parameters with HTTP 400; set this to `false` for those.
    */
   sendDimensions?: boolean;
+  /** Default NIM retrieval role for indexed documents. Query calls can override this per request. */
+  inputType?: EmbeddingInputType;
+  /** Input modality for providers such as NVIDIA NeMo Retriever. */
+  modality?: EmbeddingModality;
   /** Local proxy URL (only for provider="qclaw") — requests are forwarded through this proxy with Remote-URL header */
   proxyUrl?: string;
   /** Max input text length in characters before truncation (default: 5000). */
@@ -55,6 +59,9 @@ export interface LocalEmbeddingConfig {
 
 export type EmbeddingConfig = OpenAIEmbeddingConfig | LocalEmbeddingConfig;
 
+export type EmbeddingInputType = "query" | "passage";
+export type EmbeddingModality = "text" | "image" | "text_image";
+
 /** Identifies the embedding provider + model for change detection. */
 export interface EmbeddingProviderInfo {
   /** Provider identifier (e.g. "local", "openai", "deepseek") */
@@ -66,6 +73,10 @@ export interface EmbeddingProviderInfo {
 export interface EmbeddingCallOptions {
   /** Override the default timeout for this call (milliseconds). */
   timeoutMs?: number;
+  /** Retrieval role for asymmetric embedding models (query or indexed passage). */
+  inputType?: EmbeddingInputType;
+  /** Optional modality override for multimodal embedding providers. */
+  modality?: EmbeddingModality;
 }
 
 export interface EmbeddingService {
@@ -429,6 +440,8 @@ export class OpenAIEmbeddingService implements EmbeddingService {
   private readonly model: string;
   private readonly dims: number;
   private readonly sendDimensions: boolean;
+  private readonly inputType?: EmbeddingInputType;
+  private readonly modality?: EmbeddingModality;
   private readonly providerName: string;
   private readonly proxyUrl?: string;
   private readonly maxInputChars?: number;
@@ -453,6 +466,8 @@ export class OpenAIEmbeddingService implements EmbeddingService {
     this.model = config.model;
     this.dims = config.dimensions;
     this.sendDimensions = config.sendDimensions ?? true;
+    this.inputType = config.inputType;
+    this.modality = config.modality;
     this.providerName = config.provider || "openai";
     this.proxyUrl = config.proxyUrl?.trim() || undefined;
     this.maxInputChars = config.maxInputChars && config.maxInputChars > 0 ? config.maxInputChars : undefined;
@@ -496,13 +511,13 @@ export class OpenAIEmbeddingService implements EmbeddingService {
       const results: Float32Array[] = [];
       for (let i = 0; i < processedTexts.length; i += MAX_BATCH_SIZE) {
         const chunk = processedTexts.slice(i, i + MAX_BATCH_SIZE);
-        const chunkResults = await this._callApi(chunk, options?.timeoutMs);
+        const chunkResults = await this._callApi(chunk, options?.timeoutMs, options?.inputType, options?.modality);
         results.push(...chunkResults);
       }
       return results;
     }
 
-    return this._callApi(processedTexts, options?.timeoutMs);
+    return this._callApi(processedTexts, options?.timeoutMs, options?.inputType, options?.modality);
   }
 
   /**
@@ -517,11 +532,24 @@ export class OpenAIEmbeddingService implements EmbeddingService {
     return text.slice(0, this.maxInputChars);
   }
 
-  private async _callApi(texts: string[], timeoutOverride?: number): Promise<Float32Array[]> {
+  private async _callApi(
+    texts: string[],
+    timeoutOverride?: number,
+    inputTypeOverride?: EmbeddingInputType,
+    modalityOverride?: EmbeddingModality,
+  ): Promise<Float32Array[]> {
     const body: Record<string, unknown> = {
       input: texts,
       model: this.model,
     };
+    const inputType = inputTypeOverride ?? this.inputType;
+    if (inputType) {
+      body.input_type = inputType;
+    }
+    const modality = modalityOverride ?? this.modality;
+    if (modality) {
+      body.modality = modality;
+    }
     if (this.sendDimensions) {
       body.dimensions = this.dims;
     }

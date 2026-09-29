@@ -120,6 +120,10 @@ export interface EmbeddingConfig {
    * (e.g. BGE-M3, which returns HTTP 400 "does not support matryoshka representation").
    */
   sendDimensions: boolean;
+  /** Default retrieval role for asymmetric embedding models (usually passage for indexed records). */
+  inputType?: "query" | "passage";
+  /** Input modality for providers such as NVIDIA NeMo Retriever. */
+  modality?: "text" | "image" | "text_image";
   /** Top-K candidates to recall during conflict detection (default: 5) */
   conflictRecallTopK: number;
   /** Proxy URL for qclaw provider — when provider="qclaw", requests are forwarded through this local proxy */
@@ -418,6 +422,14 @@ export function parseConfig(raw: Record<string, unknown> | undefined): MemoryTda
   const embeddingModelRaw = str(embeddingGroup, "model") ?? "";
   const embeddingDimensionsRaw = num(embeddingGroup, "dimensions");
   const embeddingProxyUrl = str(embeddingGroup, "proxyUrl");
+  const embeddingInputTypeRaw = str(embeddingGroup, "inputType");
+  const embeddingInputType = embeddingInputTypeRaw === "query" || embeddingInputTypeRaw === "passage"
+    ? embeddingInputTypeRaw
+    : undefined;
+  const embeddingModalityRaw = str(embeddingGroup, "modality");
+  const embeddingModality = embeddingModalityRaw === "text" || embeddingModalityRaw === "image" || embeddingModalityRaw === "text_image"
+    ? embeddingModalityRaw
+    : undefined;
 
   // provider="none" → embedding disabled (default for zero-config users)
   // provider="local" → no longer exposed to users; treated as disabled at entry level
@@ -608,6 +620,8 @@ export function parseConfig(raw: Record<string, unknown> | undefined): MemoryTda
       model: str(embeddingGroup, "model") ?? defaultModel,
       dimensions: num(embeddingGroup, "dimensions") ?? defaultDimensions,
       sendDimensions: bool(embeddingGroup, "sendDimensions") ?? true,
+      inputType: embeddingInputType,
+      modality: embeddingModality,
       conflictRecallTopK: num(embeddingGroup, "conflictRecallTopK") ?? 5,
       proxyUrl: embeddingProxyUrl,
       maxInputChars: num(embeddingGroup, "maxInputChars") ?? 5000,
